@@ -1,0 +1,28 @@
+图标说明：
+在实际部署时，您需要创建以下图标文件：
+
+1. icon-192.png (192x192像素)
+   - 建议使用翻译相关的图标
+   - 透明背景
+
+2. icon-512.png (512x512像素)
+   - 高清应用图标
+
+快速创建图标的方法：
+1. 使用在线工具：https://favicon.io/
+2. 使用设计工具：Canva, Figma等
+3. 使用命令行工具生成：
+   convert -size 512x512 xc:#667eea -fill white -pointsize 200 -gravity center -draw "text 0,30 '传'" icon-512.png
+   convert -resize 192x192 icon-512.png icon-192.png
+
+图标要求：
+- 简洁明了
+- 与主题颜色（#667eea）搭配
+- 圆形或方形都可以
+- 确保文字清晰可读
+
+开发阶段可以通过添加以下占位符来使用：
+```html
+<!-- 在manifest.json中使用占位符 -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
+```

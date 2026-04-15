@@ -1,0 +1,22 @@
+# Render Blueprint - 同声传译云端部署
+# 使用方法：
+# 1. 把整个 simul_translate_free 文件夹传到 GitHub 仓库
+# 2. 访问 https://dashboard.render.com/blueprints
+# 3. 点击 "New Blueprint Instance" → 连接你的 GitHub 仓库
+# 4. 选择这个 render.yaml，填好名称后点 "Apply"
+
+services:
+  - name: simul-translate
+    plan: free
+    region: singapore
+    # 改成你的 GitHub 仓库地址！
+    # repo: https://github.com/YOUR_USERNAME/simul-translate-free
+    branch: main
+    rootDirectory: .
+    buildCommand: pip install -r requirements.txt
+    # gevent worker 配合 wsgi.py 一起用，支持长连接和并发
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:10000 --worker-class gevent --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
