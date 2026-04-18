@@ -143,6 +143,57 @@ body {
 }
 .swap-btn:hover { border-color: var(--primary); color: var(--primary); transform: rotate(180deg); }
 
+/* 双向对话开关 */
+.bidirectional-toggle {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s;
+}
+.bidirectional-toggle:hover { border-color: var(--primary-light); }
+.bidirectional-toggle.active {
+    background: #EEF2FF;
+    border-color: var(--primary);
+}
+.bidirectional-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+    transition: color 0.2s;
+}
+.bidirectional-toggle.active .bidirectional-label { color: var(--primary); }
+
+.toggle-switch { position: relative; display: inline-block; width: 32px; height: 18px; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+    position: absolute; cursor: pointer; inset: 0;
+    background: var(--border);
+    border-radius: 9px;
+    transition: 0.25s;
+}
+.toggle-slider::before {
+    content: ''; position: absolute;
+    height: 12px; width: 12px;
+    left: 3px; bottom: 3px;
+    background: white; border-radius: 50%;
+    transition: 0.25s;
+}
+input:checked + .toggle-slider { background: var(--primary); }
+input:checked + .toggle-slider::before { transform: translateX(14px); }
+
+/* 双向模式下 lang-bar 紧凑布局 */
+.lang-bar.bi-mode { gap: 6px; }
+.lang-bar.bi-mode .lang-select-group { min-width: 0; }
+.bidirectional-toggle.bi-active { background: #EEF2FF; border-color: var(--primary); }
+.bidirectional-toggle.bi-active .bidirectional-label { color: var(--primary); }
+
 /* ============================
    录音区
    ============================ */
@@ -455,6 +506,7 @@ body {
     .lang-bar { flex-direction: column; align-items: stretch; }
     .swap-btn { align-self: center; transform: rotate(90deg); }
     .swap-btn:hover { transform: rotate(270deg); }
+    .bidirectional-toggle { align-self: center; }
     .lang-pills { gap: 3px; }
     .pill { padding: 4px 9px; font-size: 12px; }
     .text-section { grid-template-columns: 1fr 28px 1fr; gap: 6px; }

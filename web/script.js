@@ -58,6 +58,40 @@ document.addEventListener('DOMContentLoaded', () => {
     let sourceLang = 'auto';
     let targetLang = 'en';
 
+    // 双向对话模式
+    let biMode = false;
+    let biLangs = ['zh-CN', 'ko']; // 双向语言对
+
+    // 双向模式切换
+    function setBiMode(enabled) {
+        biMode = enabled;
+        $('biModeSwitch').checked = enabled;
+        var toggle = $('bidirectionalToggle');
+        toggle.classList.toggle('bi-active', enabled);
+        $('langBar').classList.toggle('bi-mode', enabled);
+        if (enabled) {
+            // 确认两个语言
+            var langA = sourceLang === 'auto' ? 'zh-CN' : sourceLang;
+            var langB = targetLang;
+            if (langA === langB) {
+                showToast('请先选择两个不同的语言', 'error');
+                setBiMode(false);
+                return;
+            }
+            biLangs = [langA, langB];
+            sourceLangTag.textContent = LANG_NAMES[langA] + ' / ' + LANG_NAMES[langB];
+            targetLangTag.textContent = '→ 对方语言';
+            showToast('双向模式已开启：' + LANG_NAMES[langA] + ' ↔ ' + LANG_NAMES[langB]);
+        } else {
+            syncLangDisplay();
+            showToast('双向模式已关闭');
+        }
+    }
+
+    $('biModeSwitch').addEventListener('change', function() {
+        setBiMode(this.checked);
+    });
+
     function bindPills(containerId, onChange) {
         const container = $(containerId);
         if (!container) return;
@@ -408,9 +442,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============ 语言检测（服务端，更准）===========
     var _detectXhr = null;
-    function detectLanguage(text) {
-        if (!text || text.trim().length < 3) return;
-        if (sourceLang !== 'auto') return; // 用户已手动选语言，跳过检测
+    var _pendingBiTranslate = null; // 双向模式：待翻译的新段落
+
+    function detectLanguage(text, onDetected) {
+        if (!text || text.trim().length < 3) { onDetected && onDetected(null); return; }
         if (_detectXhr) _detectXhr.abort();
         _detectXhr = new XMLHttpRequest();
         _detectXhr.open('POST', '/api/detect', true);
@@ -435,11 +470,44 @@ document.addEventListener('DOMContentLoaded', () => {
                             detectBadge.textContent = '已确认: ' + name;
                             detectBadge.className = 'detect-badge high-conf';
                         };
+                        onDetected && onDetected(dl, conf);
+                    } else {
+                        onDetected && onDetected(null);
                     }
-                } catch(e) {}
+                } catch(e) { onDetected && onDetected(null); }
+            } else {
+                onDetected && onDetected(null);
             }
         };
+        _detectXhr.onerror = function() { onDetected && onDetected(null); };
         _detectXhr.send(JSON.stringify({ text: text.trim() }));
+    }
+
+    // 双向翻译：检测到语言后，自动翻译成另一种
+    function biTranslateIncremental(newText) {
+        detectLanguage(newText, function(dl, conf) {
+            if (!dl || !biMode) {
+                // 检测失败或非双向模式：用配置的源语言
+                if (!biMode) translateIncremental(newText, sourceLang, targetLang);
+                return;
+            }
+            // 判断该语言属于哪一边
+            var langA = biLangs[0], langB = biLangs[1];
+            var fromLang, toLang;
+            if (dl === langA || dl === langB) {
+                fromLang = dl;
+                toLang = (dl === langA) ? langB : langA;
+            } else {
+                // 检测到的语言不在两侧，按普通模式处理
+                translateIncremental(newText, sourceLang, targetLang);
+                return;
+            }
+            // 更新显示标签
+            sourceLangTag.textContent = LANG_NAMES[fromLang] || fromLang;
+            targetLangTag.textContent = LANG_NAMES[toLang] || toLang;
+            // 只翻译新增段落，追加到译文
+            translateIncremental(newText, fromLang, toLang);
+        });
     }
 
     // ============ TTS 队列（只读新增段落，不打断当前播放）===========
@@ -630,8 +698,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 sourceDisplay.innerHTML = '<div class="text-content">' + escHtml(newText) + '</div>';
                 sourceCount.textContent = newText.length + ' 字';
                 // 只翻译新增的 finalText，追加到已有译文
-                detectLanguage(newText); // 服务端语言检测
-                translateIncremental(finalText.trim(), sourceLang, targetLang);
+                if (biMode) {
+                    biTranslateIncremental(finalText.trim()); // 双向：自动检测语言方向
+                } else {
+                    detectLanguage(newText); // 普通模式：检测语言（badge显示）
+                    translateIncremental(finalText.trim(), sourceLang, targetLang);
+                }
                 resetSilence();
             }
         };
@@ -661,17 +733,33 @@ document.addEventListener('DOMContentLoaded', () => {
         S.currentSource = text;
         S.pendingTranscript = '';
         renderSource();
-        // 如果是静默超时触发，用增量追加；否则（stopRecord时）翻完整段
-        if (oldTarget && S.currentTarget) {
-            var diff = text.replace(oldTarget.split(' ').slice(-1)[0], '').trim();
-            if (diff.length > text.length * 0.5) {
-                translate(text, sourceLang, targetLang);
-            } else {
-                var added = text.substring(oldTarget.length).trim();
-                if (added) translateIncremental(added, sourceLang, targetLang);
-            }
+        if (biMode) {
+            // 双向模式：翻译成另一种语言
+            var langA = biLangs[0], langB = biLangs[1];
+            detectLanguage(text, function(dl) {
+                if (dl && (dl === langA || dl === langB)) {
+                    var fromLang = dl, toLang = (dl === langA) ? langB : langA;
+                    sourceLangTag.textContent = LANG_NAMES[fromLang] || fromLang;
+                    targetLangTag.textContent = LANG_NAMES[toLang] || toLang;
+                    translateIncremental(text, fromLang, toLang);
+                } else {
+                    // 检测失败，用普通翻译
+                    translateIncremental(text, sourceLang, targetLang);
+                }
+            });
         } else {
-            translate(text, sourceLang, targetLang);
+            // 普通模式
+            if (oldTarget && S.currentTarget) {
+                var diff = text.replace(oldTarget.split(' ').slice(-1)[0], '').trim();
+                if (diff.length > text.length * 0.5) {
+                    translate(text, sourceLang, targetLang);
+                } else {
+                    var added = text.substring(oldTarget.length).trim();
+                    if (added) translateIncremental(added, sourceLang, targetLang);
+                }
+            } else {
+                translate(text, sourceLang, targetLang);
+            }
         }
     }
 
@@ -687,7 +775,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // 停麦时：把已确认的 + 最后片段一起翻译
             var full = (S.currentSource + ' ' + S.pendingTranscript.trim()).trim();
             S.currentSource = full;
-            translate(full, sourceLang, targetLang);
+            if (biMode) {
+                biTranslateIncremental(full);
+            } else {
+                translate(full, sourceLang, targetLang);
+            }
         }
         if (S.recognition) {
             try { S.recognition.stop(); } catch(e) {}

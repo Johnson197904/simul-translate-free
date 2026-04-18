@@ -40,7 +40,7 @@
         <!-- 主内容 -->
         <main class="main">
             <!-- 语言选择栏 -->
-            <div class="lang-bar">
+            <div class="lang-bar" id="langBar">
                 <div class="lang-select-group">
                     <label>源语言</label>
                     <div class="lang-pills" id="sourcePills">
@@ -72,6 +72,14 @@
                 <button class="swap-btn" id="swapLangs" title="交换语言">
                     <i class="fas fa-right-left"></i>
                 </button>
+
+                <div class="bidirectional-toggle" id="bidirectionalToggle" title="双向对话：检测到哪种语言，自动翻译成另一种">
+                    <span class="bidirectional-label">双向</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="biModeSwitch">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
 
                 <div class="lang-select-group">
                     <label>目标语言</label>
