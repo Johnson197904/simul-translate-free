@@ -231,6 +231,17 @@ body {
 
 .text-card-count { font-size: 11px; color: var(--text-3); }
 
+.detect-badge {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: var(--radius-full);
+    background: #FEF3C7; color: #92400E;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.detect-badge:hover { background: #FDE68A; }
+.detect-badge.high-conf { background: #D1FAE5; color: #065F46; }
+.detect-badge.low-conf { background: #FEE2E2; color: #991B1B; }
+
 .text-card-body {
     padding: 14px;
     min-height: 90px; max-height: 160px;

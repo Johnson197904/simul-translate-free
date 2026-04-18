@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sourceLangTag = $('sourceLangTag');
     const targetLangTag = $('targetLangTag');
     const statusLine = $('statusLine');
+    const detectBadge = $('detectBadge');
     const manualInput = $('manualInput');
     const translateManualBtn = $('translateManualBtn');
     const translateNowBtn = $('translateNowBtn');
@@ -299,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function speak(text, lang) {
         if (!window.speechSynthesis) { showToast('浏览器不支持语音', 'error'); return; }
-        speechSynthesis.cancel();
+        ttsStop(); // 手动触发：停止当前播放，清空队列，从头开始
         var utt = new SpeechSynthesisUtterance(text);
         utt.lang = (lang === 'auto') ? 'zh-CN' : lang;
         utt.rate = S.settings.voiceSpeed;
@@ -405,6 +406,69 @@ document.addEventListener('DOMContentLoaded', () => {
         translate(S.currentSource, sourceLang, targetLang);
     });
 
+    // ============ 语言检测（服务端，更准）===========
+    var _detectXhr = null;
+    function detectLanguage(text) {
+        if (!text || text.trim().length < 3) return;
+        if (sourceLang !== 'auto') return; // 用户已手动选语言，跳过检测
+        if (_detectXhr) _detectXhr.abort();
+        _detectXhr = new XMLHttpRequest();
+        _detectXhr.open('POST', '/api/detect', true);
+        _detectXhr.setRequestHeader('Content-Type', 'application/json');
+        _detectXhr.onload = function() {
+            if (this.status === 200) {
+                try {
+                    var r = JSON.parse(this.responseText);
+                    if (r.detected_language) {
+                        var dl = r.detected_language;
+                        var conf = r.confidence || 0;
+                        var name = LANG_NAMES[dl] || dl;
+                        detectBadge.textContent = '检测: ' + name + ' ' + Math.round(conf * 100) + '%';
+                        detectBadge.style.display = 'inline-block';
+                        detectBadge.className = 'detect-badge ' + (conf >= 0.8 ? 'high-conf' : conf >= 0.5 ? '' : 'low-conf');
+                        detectBadge.title = '点击手动确认语言';
+                        detectBadge.onclick = function() {
+                            sourceLang = dl;
+                            $('sourceLang').value = dl;
+                            syncPillToHidden('sourcePills', dl);
+                            syncLangDisplay();
+                            detectBadge.textContent = '已确认: ' + name;
+                            detectBadge.className = 'detect-badge high-conf';
+                        };
+                    }
+                } catch(e) {}
+            }
+        };
+        _detectXhr.send(JSON.stringify({ text: text.trim() }));
+    }
+
+    // ============ TTS 队列（只读新增段落，不打断当前播放）===========
+    var _ttsQueue = [];
+    var _ttsBusy = false;
+    function ttsSpeak(text, lang) {
+        if (!text || !text.trim()) return;
+        if (!window.speechSynthesis) return;
+        _ttsQueue.push({ text: text, lang: lang });
+        if (!_ttsBusy) drainTTS();
+    }
+    function drainTTS() {
+        if (!_ttsQueue.length) { _ttsBusy = false; return; }
+        _ttsBusy = true;
+        var item = _ttsQueue.shift();
+        var utt = new SpeechSynthesisUtterance(item.text);
+        utt.lang = (item.lang === 'auto') ? 'zh-CN' : item.lang;
+        utt.rate = S.settings.voiceSpeed;
+        utt.pitch = S.settings.voicePitch;
+        utt.onend = function() { drainTTS(); };
+        utt.onerror = function() { drainTTS(); };
+        speechSynthesis.speak(utt);
+    }
+    function ttsStop() {
+        speechSynthesis.cancel();
+        _ttsQueue = [];
+        _ttsBusy = false;
+    }
+
     // ============ 增量翻译（只翻新增段落，追加到已有译文）===========
     var _incDebounce = null;
     async function translateIncremental(newText, fromLang, toLang) {
@@ -412,10 +476,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (fromLang === toLang) {
             S.currentTarget = (S.currentTarget ? S.currentTarget + ' ' : '') + newText;
             renderTarget();
+            if (S.settings.autoSpeak) ttsSpeak(newText, toLang);
             return;
         }
         // 追加空格占位防止结果跳动
-        var prevLen = S.currentTarget.length;
         S.currentTarget = (S.currentTarget ? S.currentTarget + ' ' : '') + newText;
         renderTarget();
 
@@ -425,14 +489,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 var result = await doTranslate(newText, fromLang, toLang);
                 var translated = result.translated_text || result.translatedText;
                 // 用新翻译替换占位
-                var target = S.currentTarget;
-                var parts = target.split(' ');
+                var parts = S.currentTarget.split(' ');
                 var placeholderCount = 0;
                 for (var i = parts.length - 1; i >= 0; i--) {
                     if (parts[i] === '' && i < parts.length - 1) continue;
-                    if (placeholderCount === 0) {
-                        parts[i] = translated;
-                    }
+                    if (placeholderCount === 0) parts[i] = translated;
                     placeholderCount++;
                     if (placeholderCount >= 2) break;
                 }
@@ -443,10 +504,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     var conf = Math.round(result.detection_info.confidence * 100);
                     statusLine.textContent = '检测为' + (LANG_NAMES[dl]||dl) + ' · ' + conf + '%';
                 } else {
-                    statusLine.textContent = '翻译中...';
+                    statusLine.textContent = '翻译完成';
                 }
+                if (S.settings.autoSpeak) ttsSpeak(translated, toLang);
             } catch (err) {
-                // 降级到前端Google翻译
                 try {
                     var params = new URLSearchParams({
                         client: 'gtx',
@@ -458,14 +519,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     var r = await fetch('https://translate.googleapis.com/translate_a/single?' + params);
                     var j = await r.json();
                     var t = j[0].map(function(p) { return p[0]; }).join('');
-                    var target2 = S.currentTarget;
-                    var lastSpace = target2.lastIndexOf(' ');
+                    var lastSpace = S.currentTarget.lastIndexOf(' ');
                     if (lastSpace > 0) {
-                        S.currentTarget = target2.substring(0, lastSpace) + ' ' + t;
+                        S.currentTarget = S.currentTarget.substring(0, lastSpace) + ' ' + t;
                     } else {
                         S.currentTarget = t;
                     }
                     renderTarget();
+                    if (S.settings.autoSpeak) ttsSpeak(t, toLang);
                 } catch (e2) {
                     statusLine.textContent = '翻译失败';
                     showToast('翻译失败', 'error');
@@ -500,6 +561,8 @@ document.addEventListener('DOMContentLoaded', () => {
         S.pendingTranscript = '';
         S.currentSource = '';
         S.currentTarget = '';
+        detectBadge.style.display = 'none';
+        detectBadge.onclick = null;
         renderSource();
         renderTarget();
 
@@ -567,6 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 sourceDisplay.innerHTML = '<div class="text-content">' + escHtml(newText) + '</div>';
                 sourceCount.textContent = newText.length + ' 字';
                 // 只翻译新增的 finalText，追加到已有译文
+                detectLanguage(newText); // 服务端语言检测
                 translateIncremental(finalText.trim(), sourceLang, targetLang);
                 resetSilence();
             }
