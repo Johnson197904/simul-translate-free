@@ -11,7 +11,7 @@ services:
     region: singapore
     # 改成你的 GitHub 仓库地址！
     # repo: https://github.com/YOUR_USERNAME/simul-translate-free
-    branch: main
+    branch: master
     rootDirectory: .
     buildCommand: pip install -r requirements.txt
     # gevent worker 配合 wsgi.py 一起用，支持长连接和并发

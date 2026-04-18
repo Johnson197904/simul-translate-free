@@ -3,357 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>免费同声传译工具 - 实时识别版</title>
-    
-    <!-- PWA 相关meta标签 -->
-    <meta name="theme-color" content="#667eea">
-    <meta name="description" content="支持百度翻译所有语言的免费同声传译工具">
-    <meta name="application-name" content="同声传译">
+    <title>同声传译</title>
+    <meta name="theme-color" content="#4F46E5">
+    <meta name="description" content="免费实时同声传译工具，支持多语言">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="同声传译">
-    <meta name="format-detection" content="telephone=no">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="msapplication-TileColor" content="#667eea">
-    <meta name="msapplication-tap-highlight" content="no">
-    
-    <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
-    
-    <!-- 苹果图标 -->
-    <link rel="apple-touch-icon" href="/icon-192.png">
-    
-    <!-- 样式表 -->
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1><i class="fas fa-language"></i> 免费同声传译工具</h1>
-            <p class="subtitle">支持百度翻译的所有语言双向实时翻译</p>
+    <div class="app">
+        <!-- 顶部状态栏 -->
+        <header class="header">
+            <div class="header-brand">
+                <div class="brand-icon">
+                    <i class="fas fa-wand-magic-sparkles"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>同声传译</h1>
+                    <p id="statusLine">准备就绪</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn" id="btnSettings" title="设置">
+                    <i class="fas fa-sliders"></i>
+                </button>
+            </div>
         </header>
 
-        <div class="main-content">
-            <div class="control-panel">
-                <div class="source-panel">
-                    <h3><i class="fas fa-microphone"></i> 源语言</h3>
-                    <select id="sourceLang" class="lang-select">
+        <!-- 主内容 -->
+        <main class="main">
+            <!-- 语言选择栏 -->
+            <div class="lang-bar">
+                <div class="lang-select-group">
+                    <label>源语言</label>
+                    <div class="lang-pills" id="sourcePills">
+                        <button class="pill active" data-value="auto">自动检测</button>
+                        <button class="pill" data-value="zh-CN">中文</button>
+                        <button class="pill" data-value="en">英文</button>
+                        <button class="pill" data-value="ja">日文</button>
+                        <button class="pill" data-value="ko">韩文</button>
+                        <button class="pill" data-value="fr">法文</button>
+                        <button class="pill" data-value="de">德文</button>
+                        <button class="pill" data-value="es">西班牙</button>
+                        <button class="pill" data-value="ru">俄文</button>
+                        <button class="pill" data-value="ar">阿拉伯</button>
+                    </div>
+                    <select id="sourceLang" class="lang-select-hidden">
                         <option value="auto">自动检测</option>
-                        <option value="zh-CN" selected>中文 (简体)</option>
-                        <option value="en">英语</option>
-                        <option value="ja">日语</option>
-                        <option value="ko">韩语</option>
-                        <option value="fr">法语</option>
-                        <option value="de">德语</option>
-                        <option value="es">西班牙语</option>
-                        <option value="ru">俄语</option>
-                        <option value="ar">阿拉伯语</option>
+                        <option value="zh-CN">中文</option>
+                        <option value="en">英文</option>
+                        <option value="ja">日文</option>
+                        <option value="ko">韩文</option>
+                        <option value="fr">法文</option>
+                        <option value="de">德文</option>
+                        <option value="es">西班牙文</option>
+                        <option value="ru">俄文</option>
+                        <option value="ar">阿拉伯文</option>
                     </select>
-                    
-                    <div class="source-controls">
-                        <button id="startSource" class="btn btn-primary">
-                            <i class="fas fa-play"></i> 开始识别源语言
-                        </button>
-                        <button id="stopSource" class="btn btn-danger disabled">
-                            <i class="fas fa-stop"></i> 停止识别
-                        </button>
+                </div>
+
+                <button class="swap-btn" id="swapLangs" title="交换语言">
+                    <i class="fas fa-right-left"></i>
+                </button>
+
+                <div class="lang-select-group">
+                    <label>目标语言</label>
+                    <div class="lang-pills" id="targetPills">
+                        <button class="pill active" data-value="en">英文</button>
+                        <button class="pill" data-value="zh-CN">中文</button>
+                        <button class="pill" data-value="ja">日文</button>
+                        <button class="pill" data-value="ko">韩文</button>
+                        <button class="pill" data-value="fr">法文</button>
+                        <button class="pill" data-value="de">德文</button>
+                        <button class="pill" data-value="es">西班牙</button>
+                        <button class="pill" data-value="ru">俄文</button>
+                        <button class="pill" data-value="ar">阿拉伯</button>
+                        <button class="pill" data-value="vi">越南</button>
                     </div>
-                    
-                    <div class="input-section">
-                        <h4><i class="fas fa-keyboard"></i> 手动输入源文本</h4>
-                        <textarea id="manualInput" rows="3" placeholder="在此输入要翻译的文本..."></textarea>
-                        <button id="translateManual" class="btn btn-secondary">
-                            <i class="fas fa-arrow-right"></i> 翻译
-                        </button>
+                    <select id="targetLang" class="lang-select-hidden">
+                        <option value="en">英文</option>
+                        <option value="zh-CN">中文</option>
+                        <option value="ja">日文</option>
+                        <option value="ko">韩文</option>
+                        <option value="fr">法文</option>
+                        <option value="de">德文</option>
+                        <option value="es">西班牙文</option>
+                        <option value="ru">俄文</option>
+                        <option value="ar">阿拉伯文</option>
+                        <option value="vi">越南文</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 录音区 -->
+            <div class="record-section">
+                <div class="record-area" id="recordArea">
+                    <div class="record-ring" id="recordRing">
+                        <div class="ring-inner">
+                            <button class="mic-btn" id="micBtn">
+                                <i class="fas fa-microphone" id="micIcon"></i>
+                            </button>
+                        </div>
+                        <div class="ring-wave" id="ringWave"></div>
+                    </div>
+                    <p class="record-hint" id="recordHint">点击麦克风开始说话</p>
+                    <p class="record-hint error-hint" id="recordHintError" style="display:none"></p>
+                </div>
+            </div>
+
+            <!-- 文字区域 -->
+            <div class="text-section">
+                <div class="text-card source-card">
+                    <div class="text-card-header">
+                        <span class="text-card-lang" id="sourceLangTag">中文</span>
+                        <span class="text-card-count" id="sourceCount">0 字</span>
+                    </div>
+                    <div class="text-card-body" id="sourceTextDisplay">
+                        <p class="text-placeholder">等待识别...</p>
                     </div>
                 </div>
 
-                <div class="center-panel">
-                    <div class="swap-btn-container">
-                        <button id="swapLangs" class="btn btn-swap">
-                            <i class="fas fa-exchange-alt"></i> 交换语言
-                        </button>
-                    </div>
-                    
-                    <div class="translation-info">
-                        <div class="info-box">
-                            <i class="fas fa-info-circle"></i>
-                            <p>正在使用百度翻译API进行实时翻译</p>
-                        </div>
-                        <div class="status-box" id="statusBox">
-                            <i class="fas fa-check-circle"></i>
-                            <span id="statusText">准备开始翻译</span>
-                        </div>
-                    </div>
-                </div>
+                <button class="translate-arrow-btn" id="translateNowBtn" title="翻译">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
 
-                <div class="target-panel">
-                    <h3><i class="fas fa-volume-up"></i> 目标语言</h3>
-                    <select id="targetLang" class="lang-select">
-                        <option value="auto">智能推荐</option>
-                        <option value="en" selected>英语</option>
-                        <option value="zh-CN">中文 (简体)</option>
-                        <option value="ja">日语</option>
-                        <option value="ko">韩语</option>
-                        <option value="fr">法语</option>
-                        <option value="de">德语</option>
-                        <option value="es">西班牙语</option>
-                        <option value="ru">俄语</option>
-                        <option value="ar">阿拉伯语</option>
-                    </select>
-                    
-                    <div class="target-controls">
-                        <button id="startTarget" class="btn btn-primary disabled">
-                            <i class="fas fa-play"></i> 开始目标语音合成
-                        </button>
-                        <button id="stopTarget" class="btn btn-danger disabled">
-                            <i class="fas fa-stop"></i> 停止语音
-                        </button>
-                        <button id="speakTarget" class="btn btn-info">
-                            <i class="fas fa-play-circle"></i> 试听
-                        </button>
+                <div class="text-card target-card">
+                    <div class="text-card-header">
+                        <span class="text-card-lang" id="targetLangTag">英文</span>
+                        <span class="text-card-count" id="targetCount">0 字</span>
+                    </div>
+                    <div class="text-card-body" id="targetTextDisplay">
+                        <p class="text-placeholder">翻译结果</p>
                     </div>
                 </div>
             </div>
 
-            <div class="translation-display">
-                <div class="translation-box source-box">
-                    <h3><i class="fas fa-comment"></i> 源文本</h3>
-                    <div class="text-display" id="sourceTextDisplay">
-                        <div class="placeholder">等待识别或输入...</div>
-                    </div>
-                    <div class="text-info">
-                        <span id="sourceLangName">中文</span>
-                        <span id="sourceTextLength">0 字符</span>
-                    </div>
-                </div>
-                
-                <div class="translation-box target-box">
-                    <h3><i class="fas fa-comment-dots"></i> 翻译文本</h3>
-                    <div class="text-display" id="targetTextDisplay">
-                        <div class="placeholder">翻译将显示在这里...</div>
-                    </div>
-                    <div class="text-info">
-                        <span id="targetLangName">英语</span>
-                        <span id="targetTextLength">0 字符</span>
-                    </div>
-                </div>
+            <!-- 操作按钮 -->
+            <div class="action-bar">
+                <button class="action-btn" id="speakBtn" title="朗读翻译结果">
+                    <i class="fas fa-volume-high"></i>
+                    <span>朗读</span>
+                </button>
+                <button class="action-btn" id="copyBtn" title="复制翻译结果">
+                    <i class="fas fa-copy"></i>
+                    <span>复制</span>
+                </button>
+                <button class="action-btn" id="clearBtn" title="清空">
+                    <i class="fas fa-eraser"></i>
+                    <span>清空</span>
+                </button>
+                <button class="action-btn" id="historyBtn" title="历史记录">
+                    <i class="fas fa-clock-rotate-left"></i>
+                    <span>历史</span>
+                </button>
             </div>
 
-            <div class="history-panel">
-                <h3><i class="fas fa-history"></i> 翻译历史</h3>
+            <!-- 手动输入区 -->
+            <div class="input-section">
+                <textarea id="manualInput" placeholder="或直接输入文字翻译..." rows="2"></textarea>
+                <button class="send-btn" id="translateManualBtn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </main>
+
+        <!-- 历史记录面板 -->
+        <div class="panel" id="historyPanel">
+            <div class="panel-header">
+                <h3><i class="fas fa-clock-rotate-left"></i> 翻译历史</h3>
+                <button class="icon-btn" id="closeHistoryBtn"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="panel-body">
                 <div class="history-list" id="historyList">
-                    <div class="history-empty">
-                        <i class="fas fa-clock"></i>
-                        <p>暂无翻译记录</p>
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <p>暂无记录</p>
                     </div>
                 </div>
-                <div class="history-controls">
-                    <button id="clearHistory" class="btn btn-secondary">
-                        <i class="fas fa-trash"></i> 清空历史
-                    </button>
-                    <button id="exportHistory" class="btn btn-secondary">
-                        <i class="fas fa-download"></i> 导出记录
-                    </button>
+            </div>
+            <div class="panel-footer">
+                <button class="text-btn" id="clearHistoryBtn"><i class="fas fa-trash"></i> 清空</button>
+                <button class="text-btn" id="exportHistoryBtn"><i class="fas fa-download"></i> 导出</button>
+            </div>
+        </div>
+
+        <!-- 设置面板 -->
+        <div class="panel" id="settingsPanel">
+            <div class="panel-header">
+                <h3><i class="fas fa-sliders"></i> 设置</h3>
+                <button class="icon-btn" id="closeSettingsBtn"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="panel-body">
+                <div class="setting-item">
+                    <div class="setting-label">
+                        <span>自动朗读翻译</span>
+                        <small>翻译完成后自动播放语音</small>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="autoSpeak" checked>
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-label">
+                        <span>语音速度</span>
+                        <small><span id="speedVal">1.0</span> x</small>
+                    </div>
+                    <input type="range" id="voiceSpeed" min="0.5" max="2" step="0.1" value="1" class="range-input">
+                </div>
+                <div class="setting-item">
+                    <div class="setting-label">
+                        <span>语音音调</span>
+                        <small><span id="pitchVal">1.0</span></small>
+                    </div>
+                    <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1" class="range-input">
+                </div>
+                <div class="setting-item">
+                    <div class="setting-label">
+                        <span>检测语言</span>
+                        <small>自动检测输入文本语言</small>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="autoDetect" checked>
+                        <span class="toggle-track"></span>
+                    </label>
                 </div>
             </div>
         </div>
 
-        <footer>
-            <p>© 2025 免费同声传译工具 | 基于百度翻译API | 仅供学习和个人使用</p>
-            <div class="footer-links">
-                <a href="#" id="toggleSettings"><i class="fas fa-cog"></i> 设置</a>
-                <a href="#" id="viewHelp"><i class="fas fa-question-circle"></i> 帮助</a>
-            </div>
-        </footer>
+        <!-- Toast 提示 -->
+        <div class="toast" id="toast"></div>
     </div>
 
-    <!-- PWA安装提示 -->
-    <div id="pwaInstallBanner" class="pwa-banner" style="display: none;">
-        <div class="pwa-banner-content">
-            <span>📱 将同声传译添加到主屏幕，随时随地使用</span>
-            <button id="pwaInstallBtn" class="btn btn-primary">安装应用</button>
-            <button id="pwaDismissBtn" class="btn btn-secondary">稍后提醒</button>
-        </div>
-    </div>
-
-    <!-- 设置模态框 -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-cog"></i> 设置</h3>
-                <span class="close-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="setting-section">
-                    <h4><i class="fas fa-music"></i> 语音设置</h4>
-                    <div class="setting-item">
-                        <label for="voiceSpeed">语音速度:</label>
-                        <input type="range" id="voiceSpeed" min="0.5" max="2" step="0.1" value="1">
-                        <span id="speedValue">1.0</span>
-                    </div>
-                    <div class="setting-item">
-                        <label for="voicePitch">语音音调:</label>
-                        <input type="range" id="voicePitch" min="0.5" max="2" step="0.1" value="1">
-                        <span id="pitchValue">1.0</span>
-                    </div>
-                </div>
-                
-                <div class="setting-section">
-                    <h4><i class="fas fa-translate"></i> 翻译设置</h4>
-                    <div class="setting-item">
-                        <label>
-                            <input type="checkbox" id="autoDetect" checked> 自动检测源语言
-                        </label>
-                        <p class="setting-tip">自动检测输入文本的语言</p>
-                    </div>
-                    <div class="setting-item">
-                        <label>
-                            <input type="checkbox" id="autoSpeak" checked> 自动播放翻译语音
-                        </label>
-                        <p class="setting-tip">翻译完成后自动播放语音</p>
-                    </div>
-                    <div class="setting-item">
-                        <label>
-                            <input type="checkbox" id="autoDetectTarget"> 智能建议目标语言
-                        </label>
-                        <p class="setting-tip">根据源语言智能建议目标语言</p>
-                    </div>
-                    <div class="setting-item">
-                        <label>
-                            <input type="checkbox" id="autoSwitchTarget"> 自动切换目标语言
-                        </label>
-                        <p class="setting-tip">谨慎：自动切换可能不准确</p>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="saveSettings" class="btn btn-primary">保存设置</button>
-                <button id="cancelSettings" class="btn btn-secondary">取消</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 帮助模态框 -->
-    <div id="helpModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-question-circle"></i> 帮助</h3>
-                <span class="close-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="help-section">
-                    <h4><i class="fas fa-microphone"></i> 使用方法</h4>
-                    <ol>
-                        <li>选择源语言和目标语言</li>
-                        <li>点击"开始识别源语言"按钮开始录音</li>
-                        <li>说话，系统会自动识别并翻译</li>
-                        <li>翻译结果会自动显示并可以试听语音</li>
-                    </ol>
-                </div>
-                
-                <div class="help-section">
-                    <h4><i class="fas fa-keyboard"></i> 手动输入</h4>
-                    <p>您也可以在文本框中手动输入文本，然后点击翻译按钮。</p>
-                </div>
-                
-                <div class="help-section">
-                    <h4><i class="fas fa-volume-up"></i> 语音合成</h4>
-                    <p>点击"试听"按钮可以播放翻译结果的语音。</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-primary close-help">关闭</button>
-            </div>
-        </div>
-    </div>
+    <!-- 遮罩层 -->
+    <div class="overlay" id="overlay"></div>
 
     <script src="script.js"></script>
-    
-    <!-- PWA功能脚本 -->
-    <script>
-        // Service Worker 注册
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/service-worker.js')
-                    .then(function(registration) {
-                        console.log('ServiceWorker 注册成功，范围：', registration.scope);
-                        
-                        // 检查更新
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            console.log('检测到新版本Service Worker');
-                            
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('新版本可用，可刷新页面更新');
-                                    showUpdateNotification();
-                                }
-                            });
-                        });
-                    })
-                    .catch(function(err) {
-                        console.log('ServiceWorker 注册失败：', err);
-                    });
-            });
-        }
-
-        // PWA安装提示
-        let deferredPrompt;
-        
-        window.addEventListener('beforeinstallprompt', (e) => {
-            // 阻止默认安装提示
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            // 显示自定义安装横幅
-            setTimeout(() => {
-                showPWAInstallBanner();
-            }, 3000);
-        });
-
-        // 显示PWA安装横幅
-        function showPWAInstallBanner() {
-            const banner = document.getElementById('pwaInstallBanner');
-            if (banner && deferredPrompt) {
-                banner.style.display = 'block';
-                
-                document.getElementById('pwaInstallBtn').addEventListener('click', async () => {
-                    banner.style.display = 'none';
-                    deferredPrompt.prompt();
-                    const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`用户选择：${outcome}`);
-                    deferredPrompt = null;
-                });
-                
-                document.getElementById('pwaDismissBtn').addEventListener('click', () => {
-                    banner.style.display = 'none';
-                    // 7天内不再显示
-                    localStorage.setItem('pwaBannerDismissed', Date.now());
-                });
-            }
-        }
-
-        // 显示更新通知
-        function showUpdateNotification() {
-            if (confirm('应用有可用更新，是否立即刷新获取新功能？')) {
-                window.location.reload();
-            }
-        }
-
-        // PWA安装状态检查
-        function checkPWAStatus() {
-            return window.matchMedia('(display-mode: standalone)').matches || 
-                   (window.navigator.standalone === true) ||
-                   (window.matchMedia('(display-mode: fullscreen)').matches);
-        }
-
-        // 如果已安装为PWA，可进行特殊处理
-        if (checkPWAStatus()) {
-            console.log('当前以PWA模式运行');
-            document.body.classList.add('pwa-mode');
-        }
-    </script>
 </body>
 </html>
