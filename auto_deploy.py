@@ -43,7 +43,7 @@ def trigger_deploy():
         "POST",
         f"https://api.render.com/v1/services/{SERVICE_ID}/deploys"
     )
-    if status in (200, 201):
+    if status in (200, 201, 202):
         print(f"OK! Deploy ID: {body.get('id','')}")
         print(f"Dashboard: https://dashboard.render.com/web/{SERVICE_ID}/deploys")
         return True

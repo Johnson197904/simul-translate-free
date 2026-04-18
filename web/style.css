@@ -109,7 +109,9 @@ body {
     display: block; margin-bottom: 8px;
 }
 
-.lang-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.lang-pills { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.lang-pills::-webkit-scrollbar { display: none; }
+.lang-pills .pill { white-space: nowrap; flex-shrink: 0; }
 
 .pill {
     padding: 5px 11px;
@@ -507,7 +509,9 @@ input:checked + .toggle-slider::before { transform: translateX(14px); }
     .swap-btn { align-self: center; transform: rotate(90deg); }
     .swap-btn:hover { transform: rotate(270deg); }
     .bidirectional-toggle { align-self: center; }
-    .lang-pills { gap: 3px; }
+    .lang-pills { gap: 3px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .lang-pills::-webkit-scrollbar { display: none; }
+    .lang-pills .pill { white-space: nowrap; flex-shrink: 0; }
     .pill { padding: 4px 9px; font-size: 12px; }
     .text-section { grid-template-columns: 1fr 28px 1fr; gap: 6px; }
     .text-card-body { min-height: 70px; font-size: 14px; }

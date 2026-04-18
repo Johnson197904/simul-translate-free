@@ -51,7 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 语言名称
     const LANG_NAMES = {
         'auto': '自动', 'zh-CN': '中文', 'en': '英文', 'ja': '日文',
-        'ko': '韩文', 'fr': '法文', 'de': '德文', 'es': '西班牙', 'ru': '俄文', 'ar': '阿拉伯', 'vi': '越南'
+        'ko': '韩文', 'fr': '法文', 'de': '德文', 'es': '西班牙', 'pt': '葡萄牙',
+        'it': '意大利', 'nl': '荷兰', 'pl': '波兰', 'tr': '土耳其',
+        'hi': '印地', 'th': '泰文', 'id': '印尼', 'cs': '捷克',
+        'sv': '瑞典', 'hu': '匈牙利', 'el': '希腊', 'uk': '乌克兰',
+        'ro': '罗马尼亚', 'ru': '俄文', 'ar': '阿拉伯', 'vi': '越南'
     };
 
     // ============ 语言选择 ============
@@ -629,8 +633,13 @@ document.addEventListener('DOMContentLoaded', () => {
         var map = {
             'auto': 'zh-CN', 'zh-CN': 'zh-CN', 'en': 'en-US',
             'ja': 'ja-JP', 'ko': 'ko-KR', 'fr': 'fr-FR',
-            'de': 'de-DE', 'es': 'es-ES', 'ru': 'ru-RU',
-            'ar': 'ar-SA'
+            'de': 'de-DE', 'es': 'es-ES', 'pt': 'pt-PT',
+            'it': 'it-IT', 'nl': 'nl-NL', 'pl': 'pl-PL',
+            'tr': 'tr-TR', 'hi': 'hi-IN', 'th': 'th-TH',
+            'id': 'id-ID', 'cs': 'cs-CZ', 'sv': 'sv-SE',
+            'hu': 'hu-HU', 'el': 'el-GR', 'uk': 'uk-UA',
+            'ro': 'ro-RO', 'ru': 'ru-RU', 'ar': 'ar-SA',
+            'vi': 'vi-VN'
         };
         return map[sourceLang] || 'zh-CN';
     }
