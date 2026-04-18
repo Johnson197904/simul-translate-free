@@ -673,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
         micIcon.className = 'fas fa-stop';
         recordHint.textContent = '说话中...';
         recordHintError.style.display = 'none';
-        statusLine.textContent = '聆听中...';
+        statusLine.textContent = '说话中...';
         startRecognition();
     }
 
@@ -689,28 +689,24 @@ document.addEventListener('DOMContentLoaded', () => {
         var resetSilence = function() {
             clearTimeout(S.silenceTimer);
             S.silenceTimer = setTimeout(function() {
-                // 只翻译 newInterim 部分（finalText 之后的临时片段）
-                // 避免把刚翻过的 finalText 再翻一遍
-                if (S.pendingTranscript && S.pendingTranscript.trim().length > 2) {
-                    // 取出 finalText 之后的那段（new interim）
-                    var pending = S.pendingTranscript.trim();
-                    var newInterim = pending;
-                    if (S.lastFinal) {
-                        // newInterim = pending 中 lastFinal 之后的部分
-                        var idx = pending.indexOf(S.lastFinal);
-                        if (idx !== -1) {
-                            newInterim = pending.substring(idx + S.lastFinal.length).trim();
-                        }
-                    }
-                    if (newInterim.length > 1) {
-                        if (biMode) {
-                            biTranslateIncremental(newInterim);
-                        } else {
-                            translateIncremental(newInterim, sourceLang, targetLang);
-                        }
-                        S.currentSource = (S.currentSource ? S.currentSource + ' ' : '') + newInterim;
+                // 静音超过1.5秒：说明已经停住
+                // 此时如果 pendingTranscript 里还有内容（最后的临时片段），追加写入
+                var pending = S.pendingTranscript ? S.pendingTranscript.trim() : '';
+                if (pending.length > 1) {
+                    // 把最后这段追加到文本框并翻译
+                    S.currentSource = pending;
+                    S.lastFinal = pending;
+                    S.pendingTranscript = '';
+                    sourceDisplay.innerHTML = '<div class="text-content">' + escHtml(pending) + '</div>';
+                    sourceCount.textContent = pending.length + ' 字';
+                    resetTargetWindow();
+                    if (biMode) {
+                        biTranslateIncremental(pending);
+                    } else {
+                        translateIncremental(pending, sourceLang, targetLang);
                     }
                 }
+                // 如果 pendingTranscript 已空，说明 finalText 时已处理完，无需额外动作
             }, 1500);
         };
 
@@ -723,23 +719,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (evt.results[i].isFinal) finalText += t;
                 else interim += t;
             }
-            S.pendingTranscript = finalText + interim;
-            var display = (S.currentSource + (S.currentSource ? ' ' : '') + S.pendingTranscript).trim();
-            sourceDisplay.innerHTML = '<div style="color:#818CF8;font-style:italic">' + escHtml(display) + '...</div>';
-            sourceCount.textContent = display.length + ' 字';
+
+            // 说话中：只显示省略号，不写文本框
+            if (interim || finalText) {
+                sourceDisplay.innerHTML = '<div style="color:#818CF8;font-style:italic">说话中...</div>';
+                sourceCount.textContent = '...';
+            }
+
             if (finalText) {
-                var newText = (S.currentSource + ' ' + finalText).trim();
-                S.currentSource = newText;
+                // 停顿了（识别出完整句子）：内容写入文本框 + 触发翻译
+                var text = finalText.trim();
+                S.currentSource = text;
                 S.pendingTranscript = '';
-                S.lastFinal = finalText.trim();
-                sourceDisplay.innerHTML = '<div class="text-content">' + escHtml(newText) + '</div>';
-                sourceCount.textContent = newText.length + ' 字';
-                // 只翻译新增的 finalText，追加到已有译文
+                S.lastFinal = text;
+                sourceDisplay.innerHTML = '<div class="text-content">' + escHtml(text) + '</div>';
+                sourceCount.textContent = text.length + ' 字';
+                // 同时清空译文窗口，从新一段开始
+                resetTargetWindow();
+                // 触发翻译
                 if (biMode) {
-                    biTranslateIncremental(finalText.trim()); // 双向：自动检测语言方向
+                    biTranslateIncremental(text);
                 } else {
-                    detectLanguage(newText); // 普通模式：检测语言（badge显示）
-                    translateIncremental(finalText.trim(), sourceLang, targetLang);
+                    detectLanguage(text);
+                    translateIncremental(text, sourceLang, targetLang);
                 }
                 resetSilence();
             }
@@ -794,14 +796,18 @@ document.addEventListener('DOMContentLoaded', () => {
         micIcon.className = 'fas fa-microphone';
         recordHint.textContent = '点击麦克风开始说话';
         statusLine.textContent = '已停止';
-        if (S.pendingTranscript && S.pendingTranscript.trim().length > 2) {
-            // 停麦时：把最后片段追加翻译
-            var full = (S.currentSource + ' ' + S.pendingTranscript.trim()).trim();
-            S.currentSource = full;
+        // 停麦时：如果还有未 final 的内容，补写入并翻译
+        var pending = S.pendingTranscript ? S.pendingTranscript.trim() : '';
+        if (pending.length > 1) {
+            S.currentSource = pending;
+            S.lastFinal = pending;
+            sourceDisplay.innerHTML = '<div class="text-content">' + escHtml(pending) + '</div>';
+            sourceCount.textContent = pending.length + ' 字';
+            resetTargetWindow();
             if (biMode) {
-                biTranslateIncremental(S.pendingTranscript.trim());
+                biTranslateIncremental(pending);
             } else {
-                translateIncremental(S.pendingTranscript.trim(), sourceLang, targetLang);
+                translateIncremental(pending, sourceLang, targetLang);
             }
         }
         if (S.recognition) {
