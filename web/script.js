@@ -405,6 +405,75 @@ document.addEventListener('DOMContentLoaded', () => {
         translate(S.currentSource, sourceLang, targetLang);
     });
 
+    // ============ 增量翻译（只翻新增段落，追加到已有译文）===========
+    var _incDebounce = null;
+    async function translateIncremental(newText, fromLang, toLang) {
+        if (!newText || !newText.trim()) return;
+        if (fromLang === toLang) {
+            S.currentTarget = (S.currentTarget ? S.currentTarget + ' ' : '') + newText;
+            renderTarget();
+            return;
+        }
+        // 追加空格占位防止结果跳动
+        var prevLen = S.currentTarget.length;
+        S.currentTarget = (S.currentTarget ? S.currentTarget + ' ' : '') + newText;
+        renderTarget();
+
+        clearTimeout(_incDebounce);
+        _incDebounce = setTimeout(async function() {
+            try {
+                var result = await doTranslate(newText, fromLang, toLang);
+                var translated = result.translated_text || result.translatedText;
+                // 用新翻译替换占位
+                var target = S.currentTarget;
+                var parts = target.split(' ');
+                var placeholderCount = 0;
+                for (var i = parts.length - 1; i >= 0; i--) {
+                    if (parts[i] === '' && i < parts.length - 1) continue;
+                    if (placeholderCount === 0) {
+                        parts[i] = translated;
+                    }
+                    placeholderCount++;
+                    if (placeholderCount >= 2) break;
+                }
+                S.currentTarget = parts.join(' ');
+                renderTarget();
+                if (result.detection_info) {
+                    var dl = result.detection_info.detected_language;
+                    var conf = Math.round(result.detection_info.confidence * 100);
+                    statusLine.textContent = '检测为' + (LANG_NAMES[dl]||dl) + ' · ' + conf + '%';
+                } else {
+                    statusLine.textContent = '翻译中...';
+                }
+            } catch (err) {
+                // 降级到前端Google翻译
+                try {
+                    var params = new URLSearchParams({
+                        client: 'gtx',
+                        sl: (fromLang === 'auto') ? 'auto' : fromLang,
+                        tl: toLang,
+                        dt: 't',
+                        q: newText
+                    });
+                    var r = await fetch('https://translate.googleapis.com/translate_a/single?' + params);
+                    var j = await r.json();
+                    var t = j[0].map(function(p) { return p[0]; }).join('');
+                    var target2 = S.currentTarget;
+                    var lastSpace = target2.lastIndexOf(' ');
+                    if (lastSpace > 0) {
+                        S.currentTarget = target2.substring(0, lastSpace) + ' ' + t;
+                    } else {
+                        S.currentTarget = t;
+                    }
+                    renderTarget();
+                } catch (e2) {
+                    statusLine.textContent = '翻译失败';
+                    showToast('翻译失败', 'error');
+                }
+            }
+        }, 150);
+    }
+
     // ============ 语音识别 ============
     function getSpeechLang() {
         var map = {
@@ -470,7 +539,9 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(S.silenceTimer);
             S.silenceTimer = setTimeout(function() {
                 if (S.pendingTranscript && S.pendingTranscript.trim().length > 2) {
-                    commit(S.pendingTranscript.trim());
+                    // 静默超时：把已确认的 + 最后的临时片段一起翻译
+                    var full = (S.currentSource + ' ' + S.pendingTranscript.trim()).trim();
+                    commit(full);
                 }
             }, 1500);
         };
@@ -495,7 +566,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 S.lastFinal = finalText.trim();
                 sourceDisplay.innerHTML = '<div class="text-content">' + escHtml(newText) + '</div>';
                 sourceCount.textContent = newText.length + ' 字';
-                translate(newText, sourceLang, targetLang);
+                // 只翻译新增的 finalText，追加到已有译文
+                translateIncremental(finalText.trim(), sourceLang, targetLang);
                 resetSilence();
             }
         };
@@ -520,11 +592,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function commit(text) {
         if (text === S.lastFinal) return;
+        var oldTarget = S.currentTarget;
         S.lastFinal = text;
         S.currentSource = text;
         S.pendingTranscript = '';
         renderSource();
-        translate(text, sourceLang, targetLang);
+        // 如果是静默超时触发，用增量追加；否则（stopRecord时）翻完整段
+        if (oldTarget && S.currentTarget) {
+            var diff = text.replace(oldTarget.split(' ').slice(-1)[0], '').trim();
+            if (diff.length > text.length * 0.5) {
+                translate(text, sourceLang, targetLang);
+            } else {
+                var added = text.substring(oldTarget.length).trim();
+                if (added) translateIncremental(added, sourceLang, targetLang);
+            }
+        } else {
+            translate(text, sourceLang, targetLang);
+        }
     }
 
     function stopRecord() {
@@ -536,7 +620,10 @@ document.addEventListener('DOMContentLoaded', () => {
         recordHint.textContent = '点击麦克风开始说话';
         statusLine.textContent = '已停止';
         if (S.pendingTranscript && S.pendingTranscript.trim().length > 2) {
-            commit(S.pendingTranscript.trim());
+            // 停麦时：把已确认的 + 最后片段一起翻译
+            var full = (S.currentSource + ' ' + S.pendingTranscript.trim()).trim();
+            S.currentSource = full;
+            translate(full, sourceLang, targetLang);
         }
         if (S.recognition) {
             try { S.recognition.stop(); } catch(e) {}
