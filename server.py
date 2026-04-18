@@ -244,6 +244,25 @@ def translate_libre(text: str, source: str, target: str) -> dict[str, Any]:
     }
 
 
+def _auto_detect_source(text: str) -> str:
+    """用Unicode字符范围在本地检测语言，完全不需要网络"""
+    import re
+    sample = text.strip()[:200]
+    if not sample:
+        return "en"
+    if re.search(r'[\u4e00-\u9fff]', sample):
+        return "zh-CN"
+    if re.search(r'[\u3040-\u309f\u30a0-\u30ff]', sample):
+        return "ja"
+    if re.search(r'[\uac00-\ud7a3]', sample):
+        return "ko"
+    if re.search(r'[\u0400-\u04ff]', sample):
+        return "ru"
+    if re.search(r'[\u0600-\u06ff]', sample):
+        return "ar"
+    return "en"
+
+
 def perform_translation(text: str, source: str, target: str, provider: str) -> dict[str, Any]:
     if not text.strip():
         raise TranslationError("没有可翻译的内容")
@@ -255,17 +274,32 @@ def perform_translation(text: str, source: str, target: str, provider: str) -> d
             "warning": "源语言和目标语言相同，已原样返回",
         }
 
+    # 如果是auto模式，先本地检测语言（Unicode字符检测，不走网络）
+    actual_source = source
+    if source == "auto":
+        actual_source = _auto_detect_source(text)
+        if actual_source == target:
+            return {
+                "provider": "local_detect",
+                "translated_text": text,
+                "detected_source": actual_source,
+                "warning": "检测到的源语言和目标语言相同，已原样返回",
+            }
+
+    # Render服务器在中国大陆外，Google被屏蔽 → 优先用MyMemory
     provider_chain = {
-        "auto": [translate_google_free, translate_mymemory, translate_libre],
-        "google_free": [translate_google_free],
+        "auto": [translate_mymemory, translate_libre],      # MyMemory优先（不依赖Google）
+        "google_free": [translate_mymemory, translate_libre],  # 降级到MyMemory
         "mymemory": [translate_mymemory],
         "libre": [translate_libre],
-    }.get(provider, [translate_google_free])
+    }.get(provider, [translate_mymemory, translate_libre])
 
     errors: list[str] = []
     for fn in provider_chain:
         try:
-            return fn(text, source, target)
+            result = fn(text, actual_source, target)
+            result["detected_source"] = actual_source
+            return result
         except TranslationError as exc:
             errors.append(f"{fn.__name__}: {exc}")
     raise TranslationError("；".join(errors))
