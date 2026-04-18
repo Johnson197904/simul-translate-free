@@ -1,5 +1,7 @@
 // 同声传译工具 - Service Worker
-const CACHE_NAME = 'simul-translate-v1.1';
+// 版本号：每次代码更新后手动+1，或者用构建hash自动替换
+const CACHE_VERSION = 'v12';  // 改数字 = 强制清除旧缓存
+const CACHE_NAME = 'simul-translate-' + CACHE_VERSION;
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -12,98 +14,55 @@ const ASSETS_TO_CACHE = [
 
 // 安装事件 - 预缓存资源
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: 正在安装...');
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Service Worker: 缓存应用资源');
-        return cache.addAll(ASSETS_TO_CACHE);
-      })
-      .then(() => {
-        console.log('Service Worker: 安装完成，跳过等待阶段');
-        return self.skipWaiting();
-      })
+      .then((cache) => cache.addAll(ASSETS_TO_CACHE))
+      .then(() => self.skipWaiting())
   );
 });
 
 // 激活事件 - 清理旧缓存
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: 正在激活...');
-  
-  // 删除旧缓存
-  const cacheWhitelist = [CACHE_NAME];
-  
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (!cacheWhitelist.includes(cacheName)) {
-            console.log('Service Worker: 删除旧缓存', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-    .then(() => {
-      console.log('Service Worker: 激活完成，已清理旧缓存');
-      return self.clients.claim();
-    })
+    caches.keys().then((names) =>
+      Promise.all(names
+        .filter((n) => n.startsWith('simul-translate-') && n !== CACHE_NAME)
+        .map((n) => caches.delete(n))
+      )
+    ).then(() => self.clients.claim())
   );
 });
 
-// 请求拦截 - 缓存优先策略
+// 请求拦截 - Stale-While-Revalidate（先用缓存，同时后台更新，下次用新）
 self.addEventListener('fetch', (event) => {
-  // 只处理同源请求
   const url = new URL(event.request.url);
-  if (url.origin !== location.origin) {
-    return;
-  }
-  
-  // 对于API请求，使用网络优先策略
+  if (url.origin !== location.origin) return;
+
+  // API 请求走网络优先
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(event.request)
-        .catch(() => {
-          // 网络失败时返回错误响应
-          return new Response(JSON.stringify({
-            ok: false,
-            error: '网络连接失败，请检查网络'
-          }), {
-            headers: { 'Content-Type': 'application/json' }
-          });
-        })
-    );
+    event.respondWith(fetch(event.request).catch(() =>
+      new Response(JSON.stringify({ ok: false, error: '网络连接失败' }),
+        { headers: { 'Content-Type': 'application/json' } })
+    ));
     return;
   }
-  
-  // 对静态资源使用缓存优先策略
+
+  // 静态资源：Stale-While-Revalidate
   event.respondWith(
-    caches.match(event.request)
-      .then((cachedResponse) => {
-        // 返回缓存内容或进行网络请求
-        return cachedResponse || fetch(event.request)
-          .then((response) => {
-            // 如果不是同源请求或不成功，直接返回
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
-            }
-            
-            // 缓存新的资源
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-            
-            return response;
-          });
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.match(event.request).then((cached) => {
+        const networkFetch = fetch(event.request).then((response) => {
+          if (response && response.status === 200 && response.type === 'basic') {
+            cache.put(event.request, response.clone());
+          }
+          return response;
+        }).catch(() => {});
+        // 有缓存就立刻返回，同时后台更新；没缓存就等网络
+        return cached || networkFetch;
       })
-      .catch(() => {
-        // 网络和缓存都失败的特殊处理
-        if (event.request.mode === 'navigate') {
-          return caches.match('/');
-        }
-      })
+    ).catch(() => {
+      if (event.request.mode === 'navigate') return caches.match('/');
+    })
   );
 });
 
