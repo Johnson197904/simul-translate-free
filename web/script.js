@@ -359,19 +359,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return data;
     }
 
+    // 全量翻译（手动翻译按钮、历史记录恢复用）
     async function translate(text, fromLang, toLang) {
         if (!text || !text.trim()) return;
         if (fromLang === toLang) {
-            S.currentTarget = text;
-            renderTarget();
+            _targetWindow = [text];
+            renderTargetWindow();
             statusLine.textContent = '完成';
             return;
         }
         try {
             var result = await doTranslate(text, fromLang, toLang);
             var translated = result.translated_text || result.translatedText;
-            S.currentTarget = translated;
-            renderTarget();
+            _targetWindow = [translated];
+            renderTargetWindow();
             if (result.detection_info) {
                 var dl = result.detection_info.detected_language;
                 var conf = Math.round(result.detection_info.confidence * 100);
@@ -382,7 +383,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (S.settings.autoSpeak) speak(S.currentTarget, toLang);
             addHistory(text, S.currentTarget, fromLang, toLang);
         } catch (err) {
-            // 降级到前端Google翻译
             try {
                 var params = new URLSearchParams({
                     client: 'gtx',
@@ -394,8 +394,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 var r = await fetch('https://translate.googleapis.com/translate_a/single?' + params);
                 var j = await r.json();
                 var t = j[0].map(function(p) { return p[0]; }).join('');
-                S.currentTarget = t;
-                renderTarget();
+                _targetWindow = [t];
+                renderTargetWindow();
                 statusLine.textContent = '翻译完成';
                 if (S.settings.autoSpeak) speak(S.currentTarget, toLang);
                 addHistory(text, t, fromLang, toLang);
@@ -537,36 +537,41 @@ document.addEventListener('DOMContentLoaded', () => {
         _ttsBusy = false;
     }
 
-    // ============ 增量翻译（只翻新增段落，追加到已有译文）===========
+    // ============ 增量翻译（只翻新增段落，滑动窗口显示）===========
+    // 译文滑动窗口：只保留最近 N 段，超出自动清除，配合说话节奏
     var _incDebounce = null;
+    var _targetWindow = [];     // 最近 N 条译文
+    var _pendingPlaceholder = null; // 占位符（等待翻译返回）
+    const _TARGET_WINDOW_SIZE = 3; // 最多保留几条
+
     async function translateIncremental(newText, fromLang, toLang) {
         if (!newText || !newText.trim()) return;
+
+        // 先清掉超过窗口的旧译文
+        if (_targetWindow.length >= _TARGET_WINDOW_SIZE) {
+            _targetWindow.shift();
+        }
+
         if (fromLang === toLang) {
-            S.currentTarget = (S.currentTarget ? S.currentTarget + ' ' : '') + newText;
-            renderTarget();
+            _targetWindow.push(newText);
+            renderTargetWindow();
             if (S.settings.autoSpeak) ttsSpeak(newText, toLang);
             return;
         }
-        // 追加空格占位防止结果跳动
-        S.currentTarget = (S.currentTarget ? S.currentTarget + ' ' : '') + newText;
-        renderTarget();
+
+        // 追加占位符（显示原文，表示正在翻译）
+        _targetWindow.push(newText);
+        renderTargetWindow();
 
         clearTimeout(_incDebounce);
         _incDebounce = setTimeout(async function() {
             try {
                 var result = await doTranslate(newText, fromLang, toLang);
                 var translated = result.translated_text || result.translatedText;
-                // 用新翻译替换占位
-                var parts = S.currentTarget.split(' ');
-                var placeholderCount = 0;
-                for (var i = parts.length - 1; i >= 0; i--) {
-                    if (parts[i] === '' && i < parts.length - 1) continue;
-                    if (placeholderCount === 0) parts[i] = translated;
-                    placeholderCount++;
-                    if (placeholderCount >= 2) break;
-                }
-                S.currentTarget = parts.join(' ');
-                renderTarget();
+                // 找到占位符并替换
+                var idx = _targetWindow.lastIndexOf(newText);
+                if (idx !== -1) _targetWindow[idx] = translated;
+                renderTargetWindow();
                 if (result.detection_info) {
                     var dl = result.detection_info.detected_language;
                     var conf = Math.round(result.detection_info.confidence * 100);
@@ -587,20 +592,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     var r = await fetch('https://translate.googleapis.com/translate_a/single?' + params);
                     var j = await r.json();
                     var t = j[0].map(function(p) { return p[0]; }).join('');
-                    var lastSpace = S.currentTarget.lastIndexOf(' ');
-                    if (lastSpace > 0) {
-                        S.currentTarget = S.currentTarget.substring(0, lastSpace) + ' ' + t;
-                    } else {
-                        S.currentTarget = t;
-                    }
-                    renderTarget();
+                    var idx = _targetWindow.lastIndexOf(newText);
+                    if (idx !== -1) _targetWindow[idx] = t;
+                    renderTargetWindow();
                     if (S.settings.autoSpeak) ttsSpeak(t, toLang);
                 } catch (e2) {
+                    // 翻译失败：从窗口移除占位符
+                    var failIdx = _targetWindow.lastIndexOf(newText);
+                    if (failIdx !== -1) _targetWindow.splice(failIdx, 1);
+                    renderTargetWindow();
                     statusLine.textContent = '翻译失败';
                     showToast('翻译失败', 'error');
                 }
             }
         }, 150);
+    }
+
+    // 渲染译文窗口（滑动窗口模式）
+    function renderTargetWindow() {
+        targetDisplay.innerHTML = '<div class="text-content">' +
+            escHtml(_targetWindow.join('\n')) + '</div>';
+        targetCount.textContent = _targetWindow.join('').length + ' 字';
+        S.currentTarget = _targetWindow.join('\n');
+    }
+
+    // 重置译文（开麦时 + 手动清空）
+    function resetTargetWindow() {
+        _targetWindow = [];
+        _pendingPlaceholder = null;
+        S.currentTarget = '';
+        renderTarget();
     }
 
     // ============ 语音识别 ============
@@ -628,11 +649,10 @@ document.addEventListener('DOMContentLoaded', () => {
         S.lastFinal = '';
         S.pendingTranscript = '';
         S.currentSource = '';
-        S.currentTarget = '';
         detectBadge.style.display = 'none';
         detectBadge.onclick = null;
+        resetTargetWindow(); // 清空译文窗口，配合说话节奏
         renderSource();
-        renderTarget();
 
         try {
             statusLine.textContent = '请求麦克风权限...';
@@ -669,10 +689,27 @@ document.addEventListener('DOMContentLoaded', () => {
         var resetSilence = function() {
             clearTimeout(S.silenceTimer);
             S.silenceTimer = setTimeout(function() {
+                // 只翻译 newInterim 部分（finalText 之后的临时片段）
+                // 避免把刚翻过的 finalText 再翻一遍
                 if (S.pendingTranscript && S.pendingTranscript.trim().length > 2) {
-                    // 静默超时：把已确认的 + 最后的临时片段一起翻译
-                    var full = (S.currentSource + ' ' + S.pendingTranscript.trim()).trim();
-                    commit(full);
+                    // 取出 finalText 之后的那段（new interim）
+                    var pending = S.pendingTranscript.trim();
+                    var newInterim = pending;
+                    if (S.lastFinal) {
+                        // newInterim = pending 中 lastFinal 之后的部分
+                        var idx = pending.indexOf(S.lastFinal);
+                        if (idx !== -1) {
+                            newInterim = pending.substring(idx + S.lastFinal.length).trim();
+                        }
+                    }
+                    if (newInterim.length > 1) {
+                        if (biMode) {
+                            biTranslateIncremental(newInterim);
+                        } else {
+                            translateIncremental(newInterim, sourceLang, targetLang);
+                        }
+                        S.currentSource = (S.currentSource ? S.currentSource + ' ' : '') + newInterim;
+                    }
                 }
             }, 1500);
         };
@@ -728,13 +765,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function commit(text) {
         if (text === S.lastFinal) return;
-        var oldTarget = S.currentTarget;
         S.lastFinal = text;
         S.currentSource = text;
         S.pendingTranscript = '';
         renderSource();
         if (biMode) {
-            // 双向模式：翻译成另一种语言
             var langA = biLangs[0], langB = biLangs[1];
             detectLanguage(text, function(dl) {
                 if (dl && (dl === langA || dl === langB)) {
@@ -743,23 +778,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     targetLangTag.textContent = LANG_NAMES[toLang] || toLang;
                     translateIncremental(text, fromLang, toLang);
                 } else {
-                    // 检测失败，用普通翻译
                     translateIncremental(text, sourceLang, targetLang);
                 }
             });
         } else {
-            // 普通模式
-            if (oldTarget && S.currentTarget) {
-                var diff = text.replace(oldTarget.split(' ').slice(-1)[0], '').trim();
-                if (diff.length > text.length * 0.5) {
-                    translate(text, sourceLang, targetLang);
-                } else {
-                    var added = text.substring(oldTarget.length).trim();
-                    if (added) translateIncremental(added, sourceLang, targetLang);
-                }
-            } else {
-                translate(text, sourceLang, targetLang);
-            }
+            translateIncremental(text, sourceLang, targetLang);
         }
     }
 
@@ -772,13 +795,13 @@ document.addEventListener('DOMContentLoaded', () => {
         recordHint.textContent = '点击麦克风开始说话';
         statusLine.textContent = '已停止';
         if (S.pendingTranscript && S.pendingTranscript.trim().length > 2) {
-            // 停麦时：把已确认的 + 最后片段一起翻译
+            // 停麦时：把最后片段追加翻译
             var full = (S.currentSource + ' ' + S.pendingTranscript.trim()).trim();
             S.currentSource = full;
             if (biMode) {
-                biTranslateIncremental(full);
+                biTranslateIncremental(S.pendingTranscript.trim());
             } else {
-                translate(full, sourceLang, targetLang);
+                translateIncremental(S.pendingTranscript.trim(), sourceLang, targetLang);
             }
         }
         if (S.recognition) {
