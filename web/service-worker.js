@@ -1,14 +1,13 @@
 // 同声传译工具 - Service Worker
-const CACHE_NAME = 'simul-translate-v1.0';
+const CACHE_NAME = 'simul-translate-v1.1';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/script.js',
-  '/manifest.json',
-  // 图标文件（如果存在）
-  '/icon-192.png',
-  '/icon-512.png'
+  './',
+  './index.html',
+  './style.css',
+  './script.js',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 // 安装事件 - 预缓存资源

@@ -1,21 +1,21 @@
 {
   "name": "免费同声传译工具",
   "short_name": "同声传译",
-  "description": "支持百度翻译所有语言的免费同声传译工具",
+  "description": "支持多语言的免费实时同声传译工具",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#667eea",
-  "theme_color": "#667eea",
+  "theme_color": "#4F46E5",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -29,13 +29,7 @@
       "name": "开始翻译",
       "short_name": "翻译",
       "description": "快速开始同声传译",
-      "url": "/?source=zh-CN&target=en",
-      "icons": [
-        {
-          "src": "/shortcut-icon.png",
-          "sizes": "96x96"
-        }
-      ]
+      "url": "/"
     }
   ]
 }
