@@ -377,6 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============ 翻译 API ============
     async function doTranslate(text, fromLang, toLang) {
         statusLine.textContent = '翻译中...';
+        console.log('[翻译请求]', { text: text.substring(0, 30), fromLang, toLang });
         var resp = await fetch('/api/translate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -384,6 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (!resp.ok) throw new Error(resp.status);
         var data = await resp.json();
+        console.log('[翻译响应]', data);
         if (!data.ok) throw new Error(data.error || '翻译失败');
         return data;
     }

@@ -499,13 +499,16 @@ def perform_translation(text: str, source: str, target: str, provider: str) -> d
         chain = [translate_google_free, translate_mymemory, translate_libre]
 
     errors: list[str] = []
+    print(f"[翻译引擎链] chain={[f.__name__ for f in chain]}")
     for fn in chain:
         try:
             result = fn(text, actual_source, target)
+            print(f"[翻译成功] provider={result.get('provider')} target={target} -> {result.get('translated_text','')[:50]!r}")
             result["detected_source"] = actual_source
             return result
         except TranslationError as exc:
             errors.append(f"{fn.__name__}: {exc}")
+            print(f"[翻译失败] {fn.__name__}: {exc}")
     raise TranslationError("；".join(errors))
 
 
@@ -595,6 +598,7 @@ class AppHandler(SimpleHTTPRequestHandler):
             source = str(body.get("source", "auto"))  # 默认自动检测
             target = str(body.get("target", "en"))
             provider = str(body.get("provider", "auto"))
+            print(f"[翻译请求] source={source} target={target} provider={provider} text={text[:50]!r}")
 
             # 如果源语言设置为"auto"，先检测语言
             actual_source = source
