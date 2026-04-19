@@ -690,6 +690,20 @@ document.addEventListener('DOMContentLoaded', () => {
         else { startRecord(); }
     });
 
+    // 检查麦克风权限状态
+    async function checkMicPermission() {
+        if (navigator.permissions && navigator.permissions.query) {
+            try {
+                var result = await navigator.permissions.query({ name: 'microphone' });
+                return result.state; // 'granted' | 'denied' | 'prompt'
+            } catch (e) {
+                // 浏览器不支持 Permissions API，回退到直接请求
+                return 'prompt';
+            }
+        }
+        return 'prompt';
+    }
+
     async function startRecord() {
         var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) {
@@ -704,15 +718,31 @@ document.addEventListener('DOMContentLoaded', () => {
         resetTargetWindow(); // 清空译文窗口，配合说话节奏
         renderSource();
 
+        // 先检查权限状态
+        var permState = await checkMicPermission();
+
+        if (permState === 'denied') {
+            showToast('麦克风权限被拒绝，请在浏览器设置中允许', 'error');
+            statusLine.textContent = '麦克风权限被拒';
+            // 尝试打开浏览器权限设置（部分浏览器支持）
+            try { navigator.mediaDevices.getUserMedia({ audio: true }).then(function(s) { s.getTracks().forEach(function(t) { t.stop(); }); }); } catch(e) {}
+            return;
+        }
+
+        // 'granted'：直接开麦（不弹窗）
+        // 'prompt'：首次会弹窗一次，之后浏览器记住
         try {
-            statusLine.textContent = '请求麦克风权限...';
+            if (permState !== 'granted') {
+                statusLine.textContent = '请求麦克风权限...';
+            }
             var stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             stream.getTracks().forEach(function(t) { t.stop(); });
         } catch (err) {
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                 showToast('请允许麦克风权限', 'error');
+                statusLine.textContent = '等待麦克风权限';
             } else {
-                showToast('麦克风错误', 'error');
+                showToast('麦克风错误: ' + err.message, 'error');
             }
             return;
         }
