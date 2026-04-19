@@ -50,12 +50,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 语言名称
     const LANG_NAMES = {
-        'auto': '自动', 'zh-CN': '中文', 'en': '英文', 'ja': '日文',
+        'auto': '自动', 'zh-CN': '中文', 'zh-TW': '繁中', 'en': '英文', 'ja': '日文',
         'ko': '韩文', 'fr': '法文', 'de': '德文', 'es': '西班牙', 'pt': '葡萄牙',
         'it': '意大利', 'nl': '荷兰', 'pl': '波兰', 'tr': '土耳其',
-        'hi': '印地', 'th': '泰文', 'id': '印尼', 'cs': '捷克',
-        'sv': '瑞典', 'hu': '匈牙利', 'el': '希腊', 'uk': '乌克兰',
-        'ro': '罗马尼亚', 'ru': '俄文', 'ar': '阿拉伯', 'vi': '越南'
+        'hi': '印地', 'th': '泰文', 'id': '印尼', 'vi': '越南',
+        'ru': '俄文', 'ar': '阿拉伯', 'he': '希伯来', 'fa': '波斯',
+        'ms': '马来', 'bn': '孟加拉', 'ur': '乌尔都',
+        'mn': '蒙古', 'my': '缅甸', 'km': '高棉',
+        'cs': '捷克', 'sv': '瑞典', 'hu': '匈牙利', 'el': '希腊',
+        'uk': '乌克兰', 'ro': '罗马尼亚', 'da': '丹麦', 'fi': '芬兰', 'no': '挪威',
+        'ta': '泰米尔', 'sw': '斯瓦希里', 'af': '南非荷兰',
+        'ka': '格鲁吉亚', 'hy': '亚美尼亚', 'az': '阿塞拜疆',
+        'kk': '哈萨克', 'uz': '乌兹别克', 'tg': '塔吉克',
+        'sk': '斯洛伐克', 'sl': '斯洛文尼亚', 'bg': '保加利亚', 'hr': '克罗地亚',
+        'sr': '塞尔维亚', 'lt': '立陶宛', 'lv': '拉脱维亚', 'et': '爱沙尼亚',
+        'sq': '阿尔巴尼亚', 'mk': '马其顿', 'is': '冰岛',
+        'ne': '尼泊尔', 'si': '僧伽罗', 'te': '泰卢固', 'ml': '马拉雅拉姆',
+        'mr': '马拉地', 'gu': '古吉拉特', 'pa': '旁遮普', 'kn': '卡纳达',
+        'am': '阿姆哈拉', 'so': '索马里', 'ha': '豪萨', 'yo': '约鲁巴',
+        'zu': '祖鲁', 'lo': '老挝', 'jv': '爪哇', 'ceb': '宿务',
+        'ht': '海地克里奥尔', 'la': '拉丁', 'eo': '世界语',
+        'lb': '卢森堡', 'ca': '加泰罗尼亚', 'eu': '巴斯克', 'gl': '加利西亚',
+        'ku': '库尔德', 'ps': '普什图'
+    };
+
+    // 翻译引擎标识（用于 statusLine 展示）
+    const PROVIDER_LABELS = {
+        'baidu': '百度',
+        'google_free': 'Google',
+        'mymemory': 'MyMemory',
+        'libre': 'LibreTranslate',
+        'local_detect': '本地',
     };
 
     // ============ 语言选择 ============
@@ -377,12 +402,13 @@ document.addEventListener('DOMContentLoaded', () => {
             var translated = result.translated_text || result.translatedText;
             _targetWindow = [translated];
             renderTargetWindow();
+            var engineLabel = PROVIDER_LABELS[result.provider] || result.provider || '';
             if (result.detection_info) {
                 var dl = result.detection_info.detected_language;
                 var conf = Math.round(result.detection_info.confidence * 100);
-                statusLine.textContent = '检测为' + (LANG_NAMES[dl]||dl) + ' · ' + conf + '%';
+                statusLine.textContent = (engineLabel ? '【' + engineLabel + '】' : '') + '检测为' + (LANG_NAMES[dl]||dl) + ' · ' + conf + '%';
             } else {
-                statusLine.textContent = '翻译完成';
+                statusLine.textContent = (engineLabel ? '【' + engineLabel + '】' : '') + '翻译完成';
             }
             if (S.settings.autoSpeak) speak(S.currentTarget, toLang);
             addHistory(text, S.currentTarget, fromLang, toLang);
@@ -400,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 var t = j[0].map(function(p) { return p[0]; }).join('');
                 _targetWindow = [t];
                 renderTargetWindow();
-                statusLine.textContent = '翻译完成';
+                statusLine.textContent = '【Google】翻译完成';
                 if (S.settings.autoSpeak) speak(S.currentTarget, toLang);
                 addHistory(text, t, fromLang, toLang);
             } catch (e2) {
@@ -576,12 +602,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 var idx = _targetWindow.lastIndexOf(newText);
                 if (idx !== -1) _targetWindow[idx] = translated;
                 renderTargetWindow();
+                var engineLabel = PROVIDER_LABELS[result.provider] || result.provider || '';
                 if (result.detection_info) {
                     var dl = result.detection_info.detected_language;
                     var conf = Math.round(result.detection_info.confidence * 100);
-                    statusLine.textContent = '检测为' + (LANG_NAMES[dl]||dl) + ' · ' + conf + '%';
+                    statusLine.textContent = (engineLabel ? '【' + engineLabel + '】' : '') + '检测为' + (LANG_NAMES[dl]||dl) + ' · ' + conf + '%';
                 } else {
-                    statusLine.textContent = '翻译完成';
+                    statusLine.textContent = (engineLabel ? '【' + engineLabel + '】' : '') + '翻译完成';
                 }
                 if (S.settings.autoSpeak) ttsSpeak(translated, toLang);
             } catch (err) {
@@ -599,6 +626,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     var idx = _targetWindow.lastIndexOf(newText);
                     if (idx !== -1) _targetWindow[idx] = t;
                     renderTargetWindow();
+                    statusLine.textContent = '【Google】翻译完成';
                     if (S.settings.autoSpeak) ttsSpeak(t, toLang);
                 } catch (e2) {
                     // 翻译失败：从窗口移除占位符
@@ -631,15 +659,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============ 语音识别 ============
     function getSpeechLang() {
         var map = {
-            'auto': 'zh-CN', 'zh-CN': 'zh-CN', 'en': 'en-US',
+            'auto': 'zh-CN', 'zh-CN': 'zh-CN', 'zh-TW': 'zh-TW', 'en': 'en-US',
             'ja': 'ja-JP', 'ko': 'ko-KR', 'fr': 'fr-FR',
             'de': 'de-DE', 'es': 'es-ES', 'pt': 'pt-PT',
             'it': 'it-IT', 'nl': 'nl-NL', 'pl': 'pl-PL',
             'tr': 'tr-TR', 'hi': 'hi-IN', 'th': 'th-TH',
-            'id': 'id-ID', 'cs': 'cs-CZ', 'sv': 'sv-SE',
-            'hu': 'hu-HU', 'el': 'el-GR', 'uk': 'uk-UA',
-            'ro': 'ro-RO', 'ru': 'ru-RU', 'ar': 'ar-SA',
-            'vi': 'vi-VN'
+            'id': 'id-ID', 'vi': 'vi-VN',
+            'ru': 'ru-RU', 'ar': 'ar-SA',
+            'he': 'he-IL', 'fa': 'fa-IR',
+            'ms': 'ms-MY', 'bn': 'bn-BD', 'ur': 'ur-PK',
+            'mn': 'mn-MN', 'my': 'my-MM', 'km': 'km-KH',
+            'cs': 'cs-CZ', 'sv': 'sv-SE', 'hu': 'hu-HU',
+            'el': 'el-GR', 'uk': 'uk-UA', 'ro': 'ro-RO',
+            'da': 'da-DK', 'fi': 'fi-FI', 'no': 'nb-NO',
+            'ta': 'ta-IN', 'sw': 'sw-KE', 'af': 'af-ZA',
+            'ka': 'ka-GE', 'hy': 'hy-AM', 'az': 'az-AZ',
+            'kk': 'kk-KZ', 'uz': 'uz-UZ',
+            'sk': 'sk-SK', 'sl': 'sl-SI', 'bg': 'bg-BG',
+            'hr': 'hr-HR', 'sr': 'sr-RS', 'lt': 'lt-LT',
+            'lv': 'lv-LV', 'et': 'et-EE',
+            'ne': 'ne-NP', 'si': 'si-LK', 'te': 'te-IN',
+            'ml': 'ml-IN', 'mr': 'mr-IN', 'gu': 'gu-IN',
+            'pa': 'pa-IN', 'kn': 'kn-IN',
         };
         return map[sourceLang] || 'zh-CN';
     }

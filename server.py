@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
+import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler
 from pathlib import Path
@@ -125,14 +127,52 @@ LANGUAGES = [
     {"code": "ku", "name": "库尔德语"},
 ]
 
+def json_response(handler: "AppHandler", payload: dict[str, Any], status: int = 200, cors: bool = True) -> None:
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json; charset=utf-8")
+    if cors:
+        handler.send_header("Access-Control-Allow-Origin", "*")
+        handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        handler.send_header("Access-Control-Allow-Headers", "Content-Type")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+class TranslationError(RuntimeError):
+    pass
+
+
+def _fetch_json(url: str, *, method: str = "GET", payload: dict[str, Any] | None = None) -> Any:
+    data = None
+    headers = {"User-Agent": "Mozilla/5.0 WorkBuddy Free Simul Translate"}
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    request = Request(url, data=data, headers=headers, method=method)
+    try:
+        with urlopen(request, timeout=18) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise TranslationError(f"HTTP {exc.code}: {detail[:300]}") from exc
+    except URLError as exc:
+        raise TranslationError(f"网络错误：{exc.reason}") from exc
+
+
 PROVIDERS = {
     "auto": {
-        "label": "自动择优（推荐）",
-        "description": "依次尝试 Google 免费网页接口、MyMemory、LibreTranslate 公共实例",
+        "label": "智能择优（推荐）",
+        "description": "国内优先百度翻译，境外优先 Google，失败自动切换 MyMemory / LibreTranslate",
+    },
+    "baidu": {
+        "label": "百度翻译",
+        "description": "国内速度最快，支持 200+ 语种，需要配置 BAIDU_APPID / BAIDU_SECRET",
     },
     "google_free": {
         "label": "Google 免费网页接口",
-        "description": "语言覆盖最广，但属于非官方网页接口，偶尔会受限",
+        "description": "语言覆盖最广，境外可用，偶尔会受限",
     },
     "mymemory": {
         "label": "MyMemory 免费接口",
@@ -144,8 +184,329 @@ PROVIDERS = {
     },
 }
 
+# ─── 百度语言代码映射（百度用自己一套代码）─────────────────────────────────
+# 百度翻译API文档：https://fanyi-api.baidu.com/doc/21
+_BAIDU_LANG_MAP: dict[str, str] = {
+    "zh-CN": "zh",     # 简体中文
+    "zh-TW": "cht",    # 繁体中文
+    "en": "en",
+    "ja": "jp",
+    "ko": "kor",
+    "fr": "fra",
+    "de": "de",
+    "es": "spa",
+    "pt": "pt",
+    "it": "it",
+    "ru": "ru",
+    "ar": "ara",
+    "th": "th",
+    "vi": "vie",
+    "id": "id",
+    "ms": "may",
+    "hi": "hi",
+    "bn": "ben",
+    "ur": "ur",
+    "fa": "per",
+    "tr": "tr",
+    "pl": "pl",
+    "nl": "nl",
+    "sv": "swe",
+    "da": "dan",
+    "fi": "fin",
+    "no": "nor",
+    "cs": "cs",
+    "sk": "sk",
+    "bg": "bul",
+    "ro": "rom",
+    "hu": "hu",
+    "el": "el",
+    "uk": "ukr",
+    "lt": "lit",
+    "lv": "lav",
+    "et": "est",
+    "he": "heb",
+    "sq": "alb",
+    "sr": "srp",
+    "hr": "hrv",
+    "mk": "mac",
+    "sl": "slo",
+    "bs": "bos",
+    "be": "bel",
+    "hy": "arm",
+    "ka": "geo",
+    "az": "aze",
+    "kk": "kaz",
+    "uz": "uzb",
+    "mn": "mon",
+    "sw": "swa",
+    "af": "afr",
+    "is": "ice",
+    "ga": "gle",
+    "cy": "wel",
+    "mt": "mlt",
+    "km": "hkm",
+    "lo": "lao",
+    "my": "bur",
+    "ne": "nep",
+    "si": "sin",
+    "ta": "tam",
+    "te": "tel",
+    "ml": "mal",
+    "kn": "kan",
+    "mr": "mar",
+    "gu": "guj",
+    "pa": "pan",
+    "am": "amh",
+    "so": "som",
+    "ha": "hau",
+    "yo": "yor",
+    "ig": "ibo",
+    "zu": "zul",
+    "xh": "xho",
+    "ht": "ht",
+    "la": "lat",
+    "eo": "epo",
+    "ku": "kur",
+    "lb": "ltz",
+    "jv": "jav",
+    "ceb": "ceb",
+    "haw": "haw",
+    "mi": "mao",
+    "sm": "sm",
+    "yi": "yid",
+    "ca": "cat",
+    "eu": "baq",
+    "gl": "glg",
+    "ps": "pus",
+    "sd": "snd",
+    "tg": "tgk",
+    "ky": "kir",
+    "auto": "auto",
+}
 
-def json_response(handler: "AppHandler", payload: dict[str, Any], status: int = 200, cors: bool = True) -> None:
+
+def _to_baidu_lang(code: str) -> str:
+    """将标准语言代码转换为百度翻译API使用的代码"""
+    return _BAIDU_LANG_MAP.get(code, code)
+
+
+# ─── 检测是否在国内（通过访问百度首页是否通畅）─────────────────────────────
+_IN_CHINA_CACHE: dict[str, Any] = {"result": None, "ts": 0}
+_IN_CHINA_TTL = 120  # 秒，2分钟重新检测一次
+
+
+def _detect_in_china() -> bool:
+    """通过访问百度API域名检测是否在中国大陆网络环境"""
+    now = time.time()
+    if _IN_CHINA_CACHE["result"] is not None and now - _IN_CHINA_CACHE["ts"] < _IN_CHINA_TTL:
+        return bool(_IN_CHINA_CACHE["result"])
+    try:
+        req = Request(
+            "https://fanyi.baidu.com",
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        with urlopen(req, timeout=4) as r:
+            ok = r.status < 400
+    except Exception:
+        ok = False
+    _IN_CHINA_CACHE["result"] = ok
+    _IN_CHINA_CACHE["ts"] = now
+    return ok
+
+
+# ─── 翻译函数 ────────────────────────────────────────────────────────────────
+
+def translate_baidu(text: str, source: str, target: str) -> dict[str, Any]:
+    """百度翻译通用文本翻译API（标准版，免费额度每月200万字）"""
+    appid = os.environ.get("BAIDU_APPID", "")
+    secret = os.environ.get("BAIDU_SECRET", "")
+    if not appid or not secret:
+        raise TranslationError("未配置百度翻译 BAIDU_APPID / BAIDU_SECRET")
+    src = _to_baidu_lang(source)
+    tgt = _to_baidu_lang(target)
+    if not src or not tgt:
+        raise TranslationError(f"百度翻译不支持该语言对: {source} → {target}")
+    salt = str(int(time.time() * 1000))
+    sign_str = appid + text + salt + secret
+    sign = hashlib.md5(sign_str.encode("utf-8")).hexdigest()
+    params = urlencode({
+        "q": text,
+        "from": src,
+        "to": tgt,
+        "appid": appid,
+        "salt": salt,
+        "sign": sign,
+    })
+    url = f"https://fanyi-api.baidu.com/api/trans/vip/translate?{params}"
+    data = _fetch_json(url)
+    if "error_code" in data:
+        raise TranslationError(f"百度翻译错误 {data['error_code']}: {data.get('error_msg', '')}")
+    results = data.get("trans_result", [])
+    if not results:
+        raise TranslationError("百度翻译返回空结果")
+    translated = "\n".join(r["dst"] for r in results)
+    detected = _BAIDU_LANG_MAP.get(data.get("from", src), data.get("from", src))
+    # 百度返回的是百度内部代码，反查回标准代码
+    detected_std = next((k for k, v in _BAIDU_LANG_MAP.items() if v == detected), detected)
+    return {
+        "provider": "baidu",
+        "translated_text": translated,
+        "detected_source": detected_std,
+    }
+
+
+def translate_google_free(text: str, source: str, target: str) -> dict[str, Any]:
+    params = urlencode({
+        "client": "gtx",
+        "sl": source or "auto",
+        "tl": target,
+        "dt": "t",
+        "q": text,
+    })
+    url = f"https://translate.googleapis.com/translate_a/single?{params}"
+    data = _fetch_json(url)
+    translated = "".join(part[0] for part in data[0] if part and part[0])
+    detected = data[2] if len(data) > 2 and data[2] else source
+    if not translated:
+        raise TranslationError("Google 免费接口返回空结果")
+    return {
+        "provider": "google_free",
+        "translated_text": translated,
+        "detected_source": detected,
+    }
+
+
+def translate_mymemory(text: str, source: str, target: str) -> dict[str, Any]:
+    if source == "auto":
+        raise TranslationError("MyMemory 不支持自动检测，请明确源语言")
+    params = urlencode({
+        "q": text,
+        "langpair": f"{source}|{target}",
+    })
+    url = f"https://api.mymemory.translated.net/get?{params}"
+    data = _fetch_json(url)
+    translated = data.get("responseData", {}).get("translatedText", "")
+    if not translated:
+        raise TranslationError("MyMemory 返回空结果")
+    return {
+        "provider": "mymemory",
+        "translated_text": translated,
+        "detected_source": source,
+        "match": data.get("responseData", {}).get("match"),
+    }
+
+
+def translate_libre(text: str, source: str, target: str) -> dict[str, Any]:
+    if source == "auto":
+        raise TranslationError("LibreTranslate 公共实例默认不建议自动检测，请明确源语言")
+    url = "https://translate.argosopentech.com/translate"
+    data = _fetch_json(
+        url,
+        method="POST",
+        payload={
+            "q": text,
+            "source": source,
+            "target": target,
+            "format": "text",
+        },
+    )
+    translated = data.get("translatedText", "")
+    if not translated:
+        raise TranslationError("LibreTranslate 返回空结果")
+    return {
+        "provider": "libre",
+        "translated_text": translated,
+        "detected_source": source,
+    }
+
+
+def _auto_detect_source(text: str) -> str:
+    """用Unicode字符范围在本地检测语言，完全不需要网络"""
+    import re
+    sample = text.strip()[:200]
+    if not sample:
+        return "en"
+    if re.search(r'[\u4e00-\u9fff]', sample):
+        return "zh-CN"
+    if re.search(r'[\u3040-\u309f\u30a0-\u30ff]', sample):
+        return "ja"
+    if re.search(r'[\uac00-\ud7a3]', sample):
+        return "ko"
+    if re.search(r'[\u0400-\u04ff]', sample):
+        return "ru"
+    if re.search(r'[\u0600-\u06ff]', sample):
+        return "ar"
+    if re.search(r'[\u0e00-\u0e7f]', sample):
+        return "th"
+    if re.search(r'[\u3041-\u3096]', sample):
+        return "ja"
+    if re.search(r'[\u0900-\u097f]', sample):
+        return "hi"
+    return "en"
+
+
+def perform_translation(text: str, source: str, target: str, provider: str) -> dict[str, Any]:
+    if not text.strip():
+        raise TranslationError("没有可翻译的内容")
+    if source == target:
+        return {
+            "provider": provider,
+            "translated_text": text,
+            "detected_source": source,
+            "warning": "源语言和目标语言相同，已原样返回",
+        }
+
+    # 如果是auto模式，先本地检测语言
+    actual_source = source
+    if source == "auto":
+        actual_source = _auto_detect_source(text)
+        if actual_source == target:
+            return {
+                "provider": "local_detect",
+                "translated_text": text,
+                "detected_source": actual_source,
+                "warning": "检测到的源语言和目标语言相同，已原样返回",
+            }
+
+    # ── 智能择优链 ──────────────────────────────────────────────────────────
+    # auto 模式：检测网络环境，国内优先百度，境外优先 Google
+    # 其他模式：按用户指定，失败时降级
+    has_baidu = bool(os.environ.get("BAIDU_APPID") and os.environ.get("BAIDU_SECRET"))
+
+    if provider == "auto":
+        in_china = _detect_in_china()
+        if in_china and has_baidu:
+            # 国内：百度 → Google → MyMemory → LibreTranslate
+            chain = [translate_baidu, translate_google_free, translate_mymemory, translate_libre]
+        elif in_china and not has_baidu:
+            # 国内但没配置百度密钥：Google → MyMemory → LibreTranslate
+            chain = [translate_google_free, translate_mymemory, translate_libre]
+        else:
+            # 境外：Google → MyMemory → 百度（如果有密钥） → LibreTranslate
+            if has_baidu:
+                chain = [translate_google_free, translate_mymemory, translate_baidu, translate_libre]
+            else:
+                chain = [translate_google_free, translate_mymemory, translate_libre]
+    elif provider == "baidu":
+        chain = [translate_baidu, translate_mymemory, translate_google_free]
+    elif provider == "google_free":
+        chain = [translate_google_free, translate_mymemory, translate_libre]
+    elif provider == "mymemory":
+        chain = [translate_mymemory]
+    elif provider == "libre":
+        chain = [translate_libre]
+    else:
+        chain = [translate_google_free, translate_mymemory, translate_libre]
+
+    errors: list[str] = []
+    for fn in chain:
+        try:
+            result = fn(text, actual_source, target)
+            result["detected_source"] = actual_source
+            return result
+        except TranslationError as exc:
+            errors.append(f"{fn.__name__}: {exc}")
+    raise TranslationError("；".join(errors))
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
