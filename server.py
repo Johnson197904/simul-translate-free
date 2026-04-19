@@ -369,6 +369,12 @@ def translate_google_free(text: str, source: str, target: str) -> dict[str, Any]
     detected = data[2] if len(data) > 2 and data[2] else source
     if not translated:
         raise TranslationError("Google 免费接口返回空结果")
+    # 防护：如果返回原文（Google 在某些语言对不支持时可能原样返回），跳过
+    import re
+    norm_src = re.sub(r'\s+', '', text.lower())
+    norm_tgt = re.sub(r'\s+', '', translated.lower())
+    if norm_src == norm_tgt and source != target and source != "auto":
+        raise TranslationError(f"Google 返回原文未翻译（可能不支持 {source}→{target}），跳过")
     return {
         "provider": "google_free",
         "translated_text": translated,
@@ -385,9 +391,15 @@ def translate_mymemory(text: str, source: str, target: str) -> dict[str, Any]:
     })
     url = f"https://api.mymemory.translated.net/get?{params}"
     data = _fetch_json(url)
-    translated = data.get("responseData", {}).get("translatedText", "")
+    translated = data.get("responseData", {}).get("translatedText", "") or ""
     if not translated:
         raise TranslationError("MyMemory 返回空结果")
+    # 防护：如果翻译结果和原文几乎一样（尤其是语言对不支持时 MyMemory 会原样返回），跳过
+    import re
+    norm_src = re.sub(r'\s+', '', text.lower())
+    norm_tgt = re.sub(r'\s+', '', translated.lower())
+    if norm_src == norm_tgt and source != target:
+        raise TranslationError(f"MyMemory 返回原文未翻译（可能不支持 {source}→{target}），跳过")
     return {
         "provider": "mymemory",
         "translated_text": translated,
